@@ -14,11 +14,13 @@ declare(strict_types=1);
 namespace Sonata\Exporter\Writer;
 
 use PhpOffice\PhpSpreadsheet\Cell\CellAddress;
+use PhpOffice\PhpSpreadsheet\Worksheet\ColumnDimension;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
+use PhpOffice\PhpSpreadsheet\Worksheet\AutoFit;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Exception as WriterException;
 
@@ -69,8 +71,57 @@ final class XlsxWriter implements TypedWriterInterface
     public function open(): void
     {
         $this->spreadsheet = new Spreadsheet();
-
+        
         $this->worksheet = $this->spreadsheet->getActiveSheet();
+
+        //Définition du style pour la première ligne(A1:E1)
+        $array = [
+            'font' => [
+                'bold' => true,
+                'name' => 'Cambria',
+                'size' => 15
+            ],
+            'alignment' => [
+                'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+                'wrapText' => true,
+            ],
+            'column' => [
+                'autoSize' => 'true',
+            ],
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                ],
+            ],
+            'fill' => [
+                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_GRADIENT_LINEAR,
+                'rotation' => 90,
+                'startColor' => [
+                    'argb' => 'FFA0A0A0',
+                ],
+                'endColor' => [
+                    'argb' => 'FFFFFFFF',
+                ],
+            ],
+            ''
+        ];
+        $this->worksheet->getStyle('A1:E' . $this->worksheet->getHighestRow())->applyFromArray($array);
+
+       // Autoresize des colonnes B à E
+        foreach (range('B', 'E') as $column) {
+            $this->worksheet->getColumnDimension($column)->setAutoSize(true);
+        }
+
+        // Largeur fixe pour la colonne A
+        $this->worksheet->getColumnDimension('A')->setWidth(50);
+
+        // Parcours de toutes les lignes et ajustement de la hauteur automatique
+        foreach ($this->worksheet->getRowIterator() as $row) {
+            $this->worksheet->getRowDimension($row->getRowIndex())->setRowHeight(-1);
+            foreach ($row->getCellIterator() as $cell) {
+                $cell->getStyle()->getAlignment()->setWrapText(true);
+            }
+        }
     }
 
     /**
@@ -91,7 +142,7 @@ final class XlsxWriter implements TypedWriterInterface
     {
         if (1 === $this->position && $this->showHeaders) {
             $this->addHeaders($data);
-
+            
             ++$this->position;
         }
 
@@ -198,18 +249,23 @@ final class XlsxWriter implements TypedWriterInterface
     /**
      * Check if the field is a DateTime.
      */
-    private function getDateTime(mixed $value): ?\DateTimeInterface
+    private function getDateTime(mixed $value)
     {
-        if (\is_string($value)) {
-            $dateTime = \DateTime::createFromFormat(\DateTimeInterface::RFC1123, $value);
-
-            if ($dateTime instanceof \DateTimeInterface) {
-                return $dateTime;
-            }
-        }
-
-        return null;
+        return $value;
     }
+    //Fonction modifiée car refuse la création du nom de fichier au nom de bytes manquant
+    // private function getDateTime(mixed $value): ?\DateTimeInterface
+    // {
+    //     if (\is_string($value)) {
+    //         $dateTime = \DateTime::createFromFormat(\DateTimeInterface::RFC1123, $value);
+
+    //         if ($dateTime instanceof \DateTimeInterface) {
+    //             return $dateTime;
+    //         }
+    //     }
+
+    //     return null;
+    // }
 
     private function getWorksheet(): Worksheet
     {
